@@ -39,7 +39,6 @@ namespace WorkTimer
 
             var timer = new System.Windows.Threading.DispatcherTimer();
             timer.Interval = TimeSpan.FromMilliseconds(1000);
-            timer.Tick += (s, args) => LastActivityTime = GetLastInputTime();
             timer.Start();
 
             var lastActivityTimeDescriptor = DependencyPropertyDescriptor.FromProperty(MainWindow.LastActivityTimeProperty, typeof(ToastNotification));
@@ -58,14 +57,16 @@ namespace WorkTimer
                     ? TimeSpan.FromSeconds(breakTime.TotalSeconds + time.TotalSeconds * BreakTime.TotalSeconds / ActivityTime.TotalSeconds)
                     : TimeSpan.FromSeconds(Math.Max(
                         0,
-                        Math.Min(BreakTime.TotalSeconds, breakTime.TotalSeconds) - time.TotalSeconds * BreakTime.TotalSeconds / ActivityTime.TotalSeconds
+                        Math.Min(BreakTime.TotalSeconds, breakTime.TotalSeconds) - time.TotalSeconds
                     ));
             };
 
             timer.Tick += (s, args) =>
             {
-                var lastActivityTime = GetLastInputTime();
+                TimeSpan lastActivityTimeSpan = GetLastInputTime();
                 var now = DateTime.Now;
+                DateTime lastActivityTime = new DateTime(now.Ticks - lastActivityTimeSpan.Ticks);
+                
                 if (
                     activityType == ActivityType.Active &&
                     now - lastActivityTime > TimeSpan.FromSeconds(10)
@@ -79,6 +80,7 @@ namespace WorkTimer
                 else if (
                     activityType == ActivityType.Break
                     && lastActivityTime > activityTime
+                    && lastActivityTime - activityTime > TimeSpan.FromSeconds(1)
                 )
                 {
                     Debug.WriteLine("Active");
@@ -135,16 +137,16 @@ namespace WorkTimer
             public int dwTime;
         }
 
-        public static DateTime GetLastInputTime()
+        public static TimeSpan GetLastInputTime()
         {
             var lastInputInfo = new LASTINPUTINFO();
             lastInputInfo.cbSize = LASTINPUTINFO.SizeOf;
             if (!GetLastInputInfo(ref lastInputInfo))
             {
-                return DateTime.MinValue;
+                return TimeSpan.Zero;
             }
 
-            return DateTime.Now.AddMilliseconds(-(Environment.TickCount - lastInputInfo.dwTime));
+            return TimeSpan.FromMilliseconds(Environment.TickCount - lastInputInfo.dwTime);
         }
 
         public static readonly DependencyProperty LastActivityTimeProperty
