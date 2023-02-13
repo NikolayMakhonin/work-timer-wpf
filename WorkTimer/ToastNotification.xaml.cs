@@ -15,6 +15,7 @@ using System.Runtime.InteropServices;
 using System.ComponentModel;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using System.Windows.Interop;
 
 namespace WorkTimer
 {
@@ -58,6 +59,8 @@ namespace WorkTimer
                     this.Close();
                 }
             });
+
+            // detect global mouse and keyboard events, and log last activity time
         }
 
         #region Message
