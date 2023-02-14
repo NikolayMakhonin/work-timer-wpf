@@ -16,14 +16,50 @@ using System.Runtime.InteropServices;
 using System.ComponentModel;
 using System.Diagnostics;
 
-enum ActivityType
+public enum ActivityType
 {
     Active,
     Break
 }
 
+public class ActivityState {
+    public DateTime TimeStart { get; set; }
+    public ActivityType Type { get; set; }
+    public TimeSpan BreakTime { get; set; }
+    public TimeSpan NextBreakTime { get; set; }
+}
+
+public interface IMainWindow
+{
+    TimeSpan ActivityTime { get; set; }
+    TimeSpan InterruptingTime { get; set; }
+    TimeSpan BreakTime { get; set; }
+    TimeSpan MinBreakTime { get; set; }
+    TimeSpan LastActivityTime { get; set; }
+    ActivityState ActivityState { get; set; }
+}
+
 namespace WorkTimer
 {
+    public class TimeSpanConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            var timeSpan = (TimeSpan)value;
+            return timeSpan.ToString(@"hh\:mm\:ss");
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            string timeString = (string)value;
+            if (TimeSpan.TryParse(timeString, out TimeSpan timeSpan))
+            {
+                return timeSpan;
+            }
+            return DependencyProperty.UnsetValue;
+        }
+    }
+
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
@@ -33,70 +69,74 @@ namespace WorkTimer
         {
             InitializeComponent();
 
-            ActivityTime = TimeSpan.FromMinutes(1);
-            InterruptingTime = TimeSpan.FromSeconds(20);
-            BreakTime = TimeSpan.FromSeconds(20);
+            ActivityTime = TimeSpan.FromMinutes(5);
+            InterruptingTime = TimeSpan.FromMinutes(1);
+            BreakTime = TimeSpan.FromMinutes(1);
+            MinBreakTime = TimeSpan.FromSeconds(20);
 
             var timer = new System.Windows.Threading.DispatcherTimer();
             timer.Interval = TimeSpan.FromMilliseconds(1000);
+            timer.Tick += (s, args) =>
+            {
+                LastActivityTime = DateTime.Now - GetLastInputTime();
+            };
             timer.Start();
 
-            var lastActivityTimeDescriptor = DependencyPropertyDescriptor.FromProperty(MainWindow.LastActivityTimeProperty, typeof(ToastNotification));
             var activityTime = DateTime.Now;
             var activityType = ActivityType.Active;
             var activeTime = TimeSpan.Zero;
             var breakTime = TimeSpan.Zero;
             var toast = new ToastNotification();
 
-            Func<ActivityType, TimeSpan, TimeSpan> getNextBreakTime = (
+            Func<ActivityType, TimeSpan, TimeSpan, TimeSpan> getNextBreakTime = (
                 ActivityType type,
+                TimeSpan prevBreakTime,
                 TimeSpan time
             ) =>
             {
                 return type == ActivityType.Active
-                    ? TimeSpan.FromSeconds(breakTime.TotalSeconds + time.TotalSeconds * BreakTime.TotalSeconds / ActivityTime.TotalSeconds)
+                    ? TimeSpan.FromSeconds(prevBreakTime.TotalSeconds + time.TotalSeconds * BreakTime.TotalSeconds / ActivityTime.TotalSeconds)
                     : TimeSpan.FromSeconds(Math.Max(
                         0,
-                        Math.Min(BreakTime.TotalSeconds, breakTime.TotalSeconds) - time.TotalSeconds
+                        Math.Min(BreakTime.TotalSeconds, prevBreakTime.TotalSeconds) - time.TotalSeconds
                     ));
             };
 
             timer.Tick += (s, args) =>
             {
-                TimeSpan lastActivityTimeSpan = GetLastInputTime();
                 var now = DateTime.Now;
+                TimeSpan lastActivityTimeSpan = GetLastInputTime();
                 DateTime lastActivityTime = new DateTime(now.Ticks - lastActivityTimeSpan.Ticks);
                 
                 if (
                     activityType == ActivityType.Active &&
-                    now - lastActivityTime > TimeSpan.FromSeconds(10)
+                    now - lastActivityTime > TimeSpan.FromSeconds(5)
                 )
                 {
                     Debug.WriteLine("Break");
-                    breakTime = getNextBreakTime(ActivityType.Active, now - activityTime);
+                    breakTime = getNextBreakTime(ActivityType.Active, breakTime, lastActivityTime - activityTime);
                     activityTime = lastActivityTime;
                     activityType = ActivityType.Break;
                 }
                 else if (
                     activityType == ActivityType.Break
-                    && lastActivityTime > activityTime
                     && lastActivityTime - activityTime > TimeSpan.FromSeconds(1)
                 )
                 {
                     Debug.WriteLine("Active");
-                    if (now - activityTime > TimeSpan.FromSeconds(60))
+                    if (now - activityTime > MinBreakTime)
                     {
-                        breakTime = getNextBreakTime(ActivityType.Break, now - activityTime);
+                        breakTime = getNextBreakTime(ActivityType.Break, breakTime, now - activityTime);
                     }
                     else
                     {
-                        breakTime = getNextBreakTime(ActivityType.Active, now - activityTime);
+                        breakTime = getNextBreakTime(ActivityType.Active, breakTime, now - activityTime);
                     }
                     activityTime = lastActivityTime;
                     activityType = ActivityType.Active;
                 }
 
-                var nextBreakTime = getNextBreakTime(activityType, now - activityTime);
+                var nextBreakTime = getNextBreakTime(activityType, breakTime, now - activityTime);
 
                 Debug.WriteLine($"breakTime: {breakTime}, nextBreakTime: {nextBreakTime}, activityType: {activityType}");
 
@@ -108,16 +148,34 @@ namespace WorkTimer
                 {
                     toast.Show();
                 }
-                if (nextBreakTime.TotalSeconds > 0)
+                if (nextBreakTime > TimeSpan.Zero)
                 {
-                    toast.Message = $"You should take a break in {TimeSpan.FromSeconds(Math.Min(BreakTime.TotalSeconds, nextBreakTime.TotalSeconds)).ToString(@"mm\:ss")}";
+                    toast.Message = "You should take a break in " + TimeSpan.FromSeconds(Math.Min(
+                        BreakTime.TotalSeconds,
+                        activityType == ActivityType.Break
+                            ? nextBreakTime.TotalSeconds
+                            : (getNextBreakTime(
+                                ActivityType.Break,
+                                getNextBreakTime(ActivityType.Active, breakTime, lastActivityTime - activityTime),
+                                now - lastActivityTime
+                            )).TotalSeconds
+                    )).ToString(@"mm\:ss");
                 }
-                if (activityType == ActivityType.Break && nextBreakTime.TotalSeconds == 0 && toast.IsVisible == true)
+                if (activityType == ActivityType.Break && nextBreakTime <= TimeSpan.Zero && toast.IsVisible == true)
                 {
                     toast.Hide();
                 }
-                toast.Animation = activityType == ActivityType.Active
-                    && nextBreakTime.TotalSeconds >= BreakTime.TotalSeconds + InterruptingTime.TotalSeconds;
+                toast.Animation = activityType == ActivityType.Active && nextBreakTime >= BreakTime + InterruptingTime;
+
+                ActivityState = new ActivityState
+                {
+                    TimeStart = activityTime,
+                    Type = activityType,
+                    BreakTime = breakTime,
+                    NextBreakTime = nextBreakTime
+                };
+                // Convert ActivityState to string and log it
+                Debug.WriteLine(ActivityState.ToString());
             };
         }
 
@@ -160,10 +218,10 @@ namespace WorkTimer
 
         #endregion
 
-        #region Max activity time
+        #region ActivityTime
 
         public static readonly DependencyProperty ActivityTimeProperty
-            = DependencyProperty.Register("ActivityTime", typeof(TimeSpan), typeof(ToastNotification), new PropertyMetadata(TimeSpan.FromMinutes(30)));
+            = DependencyProperty.Register("ActivityTime", typeof(TimeSpan), typeof(MainWindow), new PropertyMetadata(TimeSpan.FromMinutes(30)));
 
         public TimeSpan ActivityTime
         {
@@ -173,10 +231,10 @@ namespace WorkTimer
 
         #endregion
 
-        #region Max activity interrupting time
+        #region InterruptingTime
 
         public static readonly DependencyProperty InterruptingTimeProperty
-            = DependencyProperty.Register("InterruptingTime", typeof(TimeSpan), typeof(ToastNotification), new PropertyMetadata(TimeSpan.FromMinutes(5)));
+            = DependencyProperty.Register("InterruptingTime", typeof(TimeSpan), typeof(MainWindow), new PropertyMetadata(TimeSpan.FromMinutes(5)));
 
         public TimeSpan InterruptingTime
         {
@@ -186,16 +244,45 @@ namespace WorkTimer
 
         #endregion
 
-        #region Min activity brake time
-        
+        #region BreakTime
+
         public static readonly DependencyProperty BreakTimeProperty
-            = DependencyProperty.Register("BreakTime", typeof(TimeSpan), typeof(ToastNotification), new PropertyMetadata(TimeSpan.FromMinutes(5)));
+            = DependencyProperty.Register("BreakTime", typeof(TimeSpan), typeof(MainWindow), new PropertyMetadata(TimeSpan.FromMinutes(5)));
 
         public TimeSpan BreakTime
         {
             get { return (TimeSpan)GetValue(BreakTimeProperty); }
             set { SetValue(BreakTimeProperty, value); }
-        }        
+        }
+
+        #endregion
+
+        #region MinBreakTime
+
+        public static readonly DependencyProperty MinBreakTimeProperty
+            = DependencyProperty.Register("MinBreakTime", typeof(TimeSpan), typeof(MainWindow), new PropertyMetadata(TimeSpan.FromMinutes(1)));
+
+        /// <summary>
+        /// Should be less than BreakTime
+        /// </summary>
+        public TimeSpan MinBreakTime
+        {
+            get { return (TimeSpan)GetValue(MinBreakTimeProperty); }
+            set { SetValue(MinBreakTimeProperty, value); }
+        }
+
+        #endregion
+
+        #region ActivityState
+
+        public static readonly DependencyProperty ActivityStateProperty
+            = DependencyProperty.Register("ActivityState", typeof(ActivityState), typeof(MainWindow), new PropertyMetadata(default(ActivityState)));
+
+        public ActivityState ActivityState
+        {
+            get { return (ActivityState)GetValue(ActivityStateProperty); }
+            set { SetValue(ActivityStateProperty, value); }
+        }
 
         #endregion
 
