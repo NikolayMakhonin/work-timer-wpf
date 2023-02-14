@@ -95,12 +95,25 @@ namespace WorkTimer
                 TimeSpan time
             ) =>
             {
-                return type == ActivityType.Active
-                    ? TimeSpan.FromSeconds(prevBreakTime.TotalSeconds + time.TotalSeconds * BreakTime.TotalSeconds / ActivityTime.TotalSeconds)
-                    : TimeSpan.FromSeconds(Math.Max(
-                        0,
-                        Math.Min(BreakTime.TotalSeconds, prevBreakTime.TotalSeconds) - time.TotalSeconds
-                    ));
+                if (type == ActivityType.Active) {
+                    if (prevBreakTime > BreakTime)
+                    {
+                        return prevBreakTime + time
+                    }
+                    var result = TimeSpan.FromSeconds(prevBreakTime.TotalSeconds + time.TotalSeconds * BreakTime.TotalSeconds / ActivityTime.TotalSeconds);
+                    if (result > BreakTime)
+                    {
+                        result = BreakTime + TimeSpan.FromSeconds(
+                            (result - BreakTime).TotalSeconds * ActivityTime.TotalSeconds / BreakTime.TotalSeconds
+                        );
+                    }
+                    return result;
+                }
+            
+                return TimeSpan.FromSeconds(Math.Max(
+                    0,
+                    Math.Min(BreakTime.TotalSeconds, prevBreakTime.TotalSeconds) - time.TotalSeconds
+                ));
             };
 
             timer.Tick += (s, args) =>
@@ -168,7 +181,9 @@ namespace WorkTimer
                     toast.Hide();
                     Console.Beep(1000, 400);
                 }
-                var interruptingTimeExpired = activityType == ActivityType.Active && nextBreakTime >= BreakTime + InterruptingTime;
+                var interruptingTimeExpired = activityType == ActivityType.Active
+                    && nextBreakTime >= BreakTime + InterruptingTime;
+                    // && (nextBreakTime - BreakTime).TotalSeconds * ActivityTime.TotalSeconds / BreakTime.TotalSeconds >= InterruptingTime.TotalSeconds;
                 if (!interruptingTimeExpired)
                 {
                     toast.Animation = false;
