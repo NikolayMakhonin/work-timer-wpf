@@ -73,7 +73,7 @@ namespace WorkTimer
             ActivityTime = TimeSpan.FromMinutes(5);
             InterruptingTime = TimeSpan.FromMinutes(1);
             BreakTime = TimeSpan.FromMinutes(2);
-            MinBreakTime = TimeSpan.FromSeconds(20);
+            MinBreakTime = TimeSpan.FromMinutes(1);
 
             var timer = new System.Windows.Threading.DispatcherTimer();
             timer.Interval = TimeSpan.FromMilliseconds(1000);
@@ -131,10 +131,13 @@ namespace WorkTimer
                     prevActivityTime = newActivityTime;
                 }
 
-                var nextBreakTime = getNextBreakTime(
-                    false,
-                    prevActivityTime, now, prevBreakTime
-                );
+                var nextBreakTime = TimeSpan.FromSeconds(Math.Max(
+                    (MinBreakTime - (now - prevActivityTime)).TotalSeconds,
+                    getNextBreakTime(
+                        false,
+                        prevActivityTime, now, prevBreakTime
+                    ).TotalSeconds
+                ));
 
                 if (nextBreakTime >= BreakTime && toast.IsVisible == false)
                 {
