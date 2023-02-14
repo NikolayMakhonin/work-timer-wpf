@@ -83,36 +83,36 @@ namespace WorkTimer
             };
             timer.Start();
 
-            var activityTime = DateTime.Now;
-            var activityType = ActivityType.Active;
+            var prevActivityTime = DateTime.Now;
             var activeTime = TimeSpan.Zero;
-            var breakTime = TimeSpan.Zero;
+            var prevBreakTime = TimeSpan.Zero;
             var toast = new ToastNotification();
 
-            Func<ActivityType, TimeSpan, TimeSpan, TimeSpan> getNextBreakTime = (
-                ActivityType type,
-                TimeSpan prevBreakTime,
-                TimeSpan time
+            Func<bool, DateTime, DateTime, TimeSpan, TimeSpan> getNextBreakTime = (
+                bool increment,
+                DateTime _prevActivityTime,
+                DateTime _newActivityTime,
+                TimeSpan _prevBreakTime
             ) =>
             {
-                if (type == ActivityType.Active) {
-                    if (prevBreakTime > BreakTime)
+                if (increment)
+                {
+                    if (_prevBreakTime > BreakTime)
                     {
-                        return prevBreakTime + time;
+                        return _prevBreakTime + (_newActivityTime - _prevActivityTime);
                     }
-                    var result = TimeSpan.FromSeconds(prevBreakTime.TotalSeconds + time.TotalSeconds * BreakTime.TotalSeconds / ActivityTime.TotalSeconds);
-                    if (result > BreakTime)
+                    var result = _prevBreakTime.TotalSeconds + (_newActivityTime - _prevActivityTime).TotalSeconds * BreakTime.TotalSeconds / ActivityTime.TotalSeconds;
+                    if (result > BreakTime.TotalSeconds)
                     {
-                        result = BreakTime + TimeSpan.FromSeconds(
-                            (result - BreakTime).TotalSeconds * ActivityTime.TotalSeconds / BreakTime.TotalSeconds
-                        );
+                        result = BreakTime.TotalSeconds + (result - BreakTime.TotalSeconds) * ActivityTime.TotalSeconds / BreakTime.TotalSeconds;
                     }
-                    return result;
+                    return TimeSpan.FromSeconds(result);
                 }
-            
+
                 return TimeSpan.FromSeconds(Math.Max(
                     0,
-                    Math.Min(BreakTime.TotalSeconds, prevBreakTime.TotalSeconds) - time.TotalSeconds
+                    Math.Min(BreakTime.TotalSeconds, _prevBreakTime.TotalSeconds)
+                    - (_newActivityTime - _prevActivityTime).TotalSeconds
                 ));
             };
 
@@ -120,70 +120,37 @@ namespace WorkTimer
             {
                 var now = DateTime.Now;
                 TimeSpan lastActivityTimeSpan = GetLastInputTime();
-                DateTime lastActivityTime = new DateTime(now.Ticks - lastActivityTimeSpan.Ticks);
+                DateTime newActivityTime = new DateTime(now.Ticks - lastActivityTimeSpan.Ticks);
                 
-                if (
-                    activityType == ActivityType.Active &&
-                    now - lastActivityTime > TimeSpan.FromSeconds(5)
-                )
+                if (newActivityTime - prevActivityTime > TimeSpan.FromSeconds(1))
                 {
-                    Debug.WriteLine("Break");
-                    breakTime = getNextBreakTime(ActivityType.Active, breakTime, lastActivityTime - activityTime);
-                    activityTime = lastActivityTime;
-                    activityType = ActivityType.Break;
-                }
-                else if (
-                    activityType == ActivityType.Break
-                    && lastActivityTime - activityTime > TimeSpan.FromSeconds(1)
-                )
-                {
-                    Debug.WriteLine("Active");
-                    if (now - activityTime > MinBreakTime)
-                    {
-                        breakTime = getNextBreakTime(ActivityType.Break, breakTime, now - activityTime);
-                    }
-                    else
-                    {
-                        breakTime = getNextBreakTime(ActivityType.Active, breakTime, now - activityTime);
-                    }
-                    activityTime = lastActivityTime;
-                    activityType = ActivityType.Active;
+                    prevBreakTime = getNextBreakTime(
+                        newActivityTime - prevActivityTime < MinBreakTime,
+                        prevActivityTime, newActivityTime, prevBreakTime
+                    );
+                    prevActivityTime = newActivityTime;
                 }
 
-                var nextBreakTime = getNextBreakTime(activityType, breakTime, now - activityTime);
+                var nextBreakTime = getNextBreakTime(
+                    false,
+                    prevActivityTime, now, prevBreakTime
+                );
 
-                Debug.WriteLine($"breakTime: {breakTime}, nextBreakTime: {nextBreakTime}, activityType: {activityType}");
-
-                // if nextBreakTime >= BreakTime then show toast
-                // if nextBreakTime > 0 then update toast message with Math.min(BreakTime, nextBreakTime)
-                // if activityType == ActivityType.Break && nextBreakTime == 0 then hide toast
-                // if activityType == ActivityType.Active && nextBreakTime >= BreakTime + InterruptingTime then animate toast
-                if (nextBreakTime >= BreakTime && toast.IsVisible == false)
+                if (prevBreakTime >= BreakTime && toast.IsVisible == false)
                 {
                     toast.Show();
                     Console.Beep(800, 200);
                 }
-                if (nextBreakTime > TimeSpan.Zero)
-                {
-                    toast.Message = "You should take a break in " + TimeSpan.FromSeconds(Math.Min(
-                        BreakTime.TotalSeconds,
-                        activityType == ActivityType.Break
-                            ? nextBreakTime.TotalSeconds
-                            : (getNextBreakTime(
-                                ActivityType.Break,
-                                getNextBreakTime(ActivityType.Active, breakTime, lastActivityTime - activityTime),
-                                now - lastActivityTime
-                            )).TotalSeconds
-                    )).ToString(@"mm\:ss");
-                }
-                if (activityType == ActivityType.Break && nextBreakTime <= TimeSpan.Zero && toast.IsVisible == true)
+                toast.Message = "You should take a break in " + TimeSpan.FromSeconds(Math.Min(
+                    BreakTime.TotalSeconds,
+                    nextBreakTime.TotalSeconds
+                )).ToString(@"mm\:ss");
+                if (nextBreakTime <= TimeSpan.Zero && toast.IsVisible == true)
                 {
                     toast.Hide();
                     Console.Beep(1000, 400);
                 }
-                var interruptingTimeExpired = activityType == ActivityType.Active
-                    && nextBreakTime >= BreakTime + InterruptingTime;
-                    // && (nextBreakTime - BreakTime).TotalSeconds * ActivityTime.TotalSeconds / BreakTime.TotalSeconds >= InterruptingTime.TotalSeconds;
+                var interruptingTimeExpired = prevBreakTime >= BreakTime + InterruptingTime;
                 if (!interruptingTimeExpired)
                 {
                     toast.Animation = false;
@@ -198,13 +165,10 @@ namespace WorkTimer
 
                 ActivityState = new ActivityState
                 {
-                    TimeStart = activityTime,
-                    Type = activityType,
-                    BreakTime = breakTime,
+                    TimeStart = prevActivityTime,
+                    BreakTime = prevBreakTime,
                     NextBreakTime = nextBreakTime
                 };
-                // Convert ActivityState to string and log it
-                Debug.WriteLine(ActivityState.ToString());
             };
         }
 
