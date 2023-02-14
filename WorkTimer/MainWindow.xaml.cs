@@ -15,6 +15,7 @@ using System.Windows.Shapes;
 using System.Runtime.InteropServices;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Threading;
 
 public enum ActivityType
 {
@@ -147,6 +148,7 @@ namespace WorkTimer
                 if (nextBreakTime >= BreakTime && toast.IsVisible == false)
                 {
                     toast.Show();
+                    Console.Beep(800, 200);
                 }
                 if (nextBreakTime > TimeSpan.Zero)
                 {
@@ -164,8 +166,20 @@ namespace WorkTimer
                 if (activityType == ActivityType.Break && nextBreakTime <= TimeSpan.Zero && toast.IsVisible == true)
                 {
                     toast.Hide();
+                    Console.Beep(1000, 400);
                 }
-                toast.Animation = activityType == ActivityType.Active && nextBreakTime >= BreakTime + InterruptingTime;
+                var interruptingTimeExpired = activityType == ActivityType.Active && nextBreakTime >= BreakTime + InterruptingTime;
+                if (!interruptingTimeExpired)
+                {
+                    toast.Animation = false;
+                }
+                else if (toast.Animation != true)
+                {
+                    toast.Animation = true;
+                    Console.Beep(800, 150);
+                    Thread.Sleep(100);
+                    Console.Beep(800, 150);
+                }
 
                 ActivityState = new ActivityState
                 {
