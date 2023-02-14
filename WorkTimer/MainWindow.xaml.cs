@@ -136,7 +136,7 @@ namespace WorkTimer
                     prevActivityTime, now, prevBreakTime
                 );
 
-                if (prevBreakTime >= BreakTime && toast.IsVisible == false)
+                if (nextBreakTime >= BreakTime && toast.IsVisible == false)
                 {
                     toast.Show();
                     Console.Beep(800, 200);
