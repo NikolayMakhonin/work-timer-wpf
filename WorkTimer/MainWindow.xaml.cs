@@ -72,7 +72,7 @@ namespace WorkTimer
 
             ActivityTime = TimeSpan.FromMinutes(5);
             InterruptingTime = TimeSpan.FromMinutes(1);
-            BreakTime = TimeSpan.FromMinutes(1);
+            BreakTime = TimeSpan.FromMinutes(2);
             MinBreakTime = TimeSpan.FromSeconds(20);
 
             var timer = new System.Windows.Threading.DispatcherTimer();
@@ -98,7 +98,7 @@ namespace WorkTimer
                 if (type == ActivityType.Active) {
                     if (prevBreakTime > BreakTime)
                     {
-                        return prevBreakTime + time
+                        return prevBreakTime + time;
                     }
                     var result = TimeSpan.FromSeconds(prevBreakTime.TotalSeconds + time.TotalSeconds * BreakTime.TotalSeconds / ActivityTime.TotalSeconds);
                     if (result > BreakTime)
