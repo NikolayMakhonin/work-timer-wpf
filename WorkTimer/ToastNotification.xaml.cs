@@ -39,6 +39,21 @@ namespace WorkTimer
                 SetValue(CloseTimeSpanProperty, value);
             };
 
+            Action updateTransparentForMouse = () => {
+                if (TransparentForMouse)
+                {
+                    var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                    var extendedStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+                    SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle | WS_EX_TRANSPARENT);
+                }
+                else
+                {
+                    var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                    var extendedStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+                    SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle & ~WS_EX_TRANSPARENT);
+                }
+            };
+
             var timer = new DispatcherTimer();
             timer.Interval = TimeSpan.FromSeconds(1);
             timer.Start();
@@ -47,6 +62,7 @@ namespace WorkTimer
             var messageDescriptor = DependencyPropertyDescriptor.FromProperty(ToastNotification.MessageProperty, typeof(ToastNotification));
             var closeDateTimeDescriptor = DependencyPropertyDescriptor.FromProperty(ToastNotification.CloseDateTimeProperty, typeof(ToastNotification));
             var closeTimeSpanDescriptor = DependencyPropertyDescriptor.FromProperty(ToastNotification.CloseTimeSpanProperty, typeof(ToastNotification));
+            var transparentForMouseDescriptor = DependencyPropertyDescriptor.FromProperty(ToastNotification.TransparentForMouseProperty, typeof(ToastNotification));
 
             closeDateTimeDescriptor.AddValueChanged(this, (s, args) => updateCloseTimeSpan());
             timer.Tick += (s, args) => updateCloseTimeSpan();
@@ -59,6 +75,8 @@ namespace WorkTimer
                     this.Close();
                 }
             });
+            transparentForMouseDescriptor.AddValueChanged(this, (s, args) => updateTransparentForMouse());
+            this.Loaded += (s, args) => updateTransparentForMouse();
 
             // detect global mouse and keyboard events, and log last activity time
         }
@@ -100,39 +118,13 @@ namespace WorkTimer
         [DllImport("user32.dll", EntryPoint = "GetWindowLong")]
         private static extern int GetWindowLong(IntPtr hwnd, int nIndex);
 
-        // Transparent for mouse property
         public static readonly DependencyProperty TransparentForMouseProperty
-            = DependencyProperty.Register("TransparentForMouse", typeof(bool), typeof(ToastNotification), new PropertyMetadata(false, new PropertyChangedCallback(_TransparentForMousePropertyChanged)));
+            = DependencyProperty.Register("TransparentForMouse", typeof(bool), typeof(ToastNotification), new PropertyMetadata(false));
 
         public bool TransparentForMouse
         {
             get { return (bool)GetValue(TransparentForMouseProperty); }
             set { SetValue(TransparentForMouseProperty, value); }
-        }
-
-        private static void _TransparentForMousePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            var toast = d as ToastNotification;
-            if (toast != null)
-            {
-                toast.TransparentForMousePropertyChanged(e);
-            }
-        }
-
-        private void TransparentForMousePropertyChanged(DependencyPropertyChangedEventArgs e)
-        {
-            if (TransparentForMouse)
-            {
-                var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                var extendedStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-                SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle | WS_EX_TRANSPARENT);
-            }
-            else
-            {
-                var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                var extendedStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-                SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle & ~WS_EX_TRANSPARENT);
-            }
         }
 
         #endregion
@@ -180,10 +172,9 @@ namespace WorkTimer
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            // set the window to be bottom center of the client area of the screen
-            var workingArea = System.Windows.SystemParameters.WorkArea;
-            this.Left = workingArea.Left + (workingArea.Width - this.Width) / 2;
-            this.Top = workingArea.Bottom - this.Height;
+            // set the window to be bottom center of the screen
+            this.Left = System.Windows.SystemParameters.PrimaryScreenWidth / 2 - this.Width / 2;
+            this.Top = System.Windows.SystemParameters.PrimaryScreenHeight - this.Height - 10;
         }
 
         private void Window_MouseDown(object sender, MouseButtonEventArgs e)

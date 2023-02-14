@@ -87,6 +87,7 @@ namespace WorkTimer
             var activeTime = TimeSpan.Zero;
             var prevBreakTime = TimeSpan.Zero;
             var toast = new ToastNotification();
+            toast.TransparentForMouse = true;
 
             Func<bool, DateTime, DateTime, TimeSpan, TimeSpan> getNextBreakTime = (
                 bool increment,
