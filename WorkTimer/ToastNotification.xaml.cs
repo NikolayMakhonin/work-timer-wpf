@@ -78,7 +78,7 @@ namespace WorkTimer
             };
 
             var timer = new DispatcherTimer();
-            timer.Interval = TimeSpan.FromSeconds(1);
+            timer.Interval = TimeSpan.FromMilliseconds(100);
             timer.Start();
             this.Closed += (s, args) => timer.Stop();
 
@@ -103,6 +103,13 @@ namespace WorkTimer
             this.Loaded += (s, args) => updateTransparentForMouse();
             this.SizeChanged += (s, args) => updatePosition();
             this.Loaded += (s, args) => updatePosition();
+
+            // Set the window's z-order to always be on top
+            timer.Tick += (s, args) =>
+            {
+                var hwnd = new WindowInteropHelper(this).Handle;
+                SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, TOPMOST_FLAGS);
+            };
 
             // detect global mouse and keyboard events, and log last activity time
         }
@@ -206,6 +213,20 @@ namespace WorkTimer
             }
         }
 
+        #endregion
+
+        #region SetWindowPos
+
+        private const int HWND_TOPMOST = -1;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint TOPMOST_FLAGS = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetWindowPos(IntPtr hWnd, int hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+        
         #endregion
 
         private void Window_MouseDown(object sender, MouseButtonEventArgs e)

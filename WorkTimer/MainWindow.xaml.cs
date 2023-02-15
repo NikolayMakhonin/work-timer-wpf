@@ -316,5 +316,11 @@ namespace WorkTimer
         {
             prevBreakTime = BreakTime;
         }
+
+        private void Continue_Click(object sender, RoutedEventArgs e)
+        {
+            prevBreakTime = TimeSpan.Zero;
+            toast.Hide();
+        }
     }
 }

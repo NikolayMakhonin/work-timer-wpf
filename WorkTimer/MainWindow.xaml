@@ -63,6 +63,7 @@
 				<RowDefinition Height="Auto"/>
 				<RowDefinition Height="Auto"/>
 				<RowDefinition Height="Auto"/>
+				<RowDefinition Height="Auto"/>
 			</Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -70,6 +71,7 @@
             <Button Grid.Row="0" Grid.Column="0" Margin="5" Content="Show" Click="Show_Click"/>
             <Button Grid.Row="1" Grid.Column="0" Margin="5" Content="Hide" Click="Hide_Click"/>
             <Button Grid.Row="2" Grid.Column="0" Margin="5" Content="Break" Click="Break_Click"/>
+            <Button Grid.Row="3" Grid.Column="0" Margin="5" Content="Continue" Click="Continue_Click"/>
         </Grid>            
     </Grid>
 </Window>
