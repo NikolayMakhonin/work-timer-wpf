@@ -19,6 +19,20 @@ using System.Windows.Interop;
 
 namespace WorkTimer
 {
+    public class ScaleConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            var scale = (double)value;
+            return new ScaleTransform(scale, scale);
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     /// <summary>
     /// Interaction logic for ToastNotification.xaml
     /// </summary>
@@ -54,6 +68,15 @@ namespace WorkTimer
                 }
             };
 
+            Action updatePosition = () => {
+                if (double.IsNaN(this.ActualWidth) || double.IsNaN(this.ActualHeight) || this.ActualWidth == 0 || this.ActualHeight == 0)
+                {
+                    return;
+                }
+                this.Left = System.Windows.SystemParameters.PrimaryScreenWidth / 2 - this.ActualWidth / 2;
+                this.Top = System.Windows.SystemParameters.PrimaryScreenHeight - this.ActualHeight - 10;
+            };
+
             var timer = new DispatcherTimer();
             timer.Interval = TimeSpan.FromSeconds(1);
             timer.Start();
@@ -63,6 +86,7 @@ namespace WorkTimer
             var closeDateTimeDescriptor = DependencyPropertyDescriptor.FromProperty(ToastNotification.CloseDateTimeProperty, typeof(ToastNotification));
             var closeTimeSpanDescriptor = DependencyPropertyDescriptor.FromProperty(ToastNotification.CloseTimeSpanProperty, typeof(ToastNotification));
             var transparentForMouseDescriptor = DependencyPropertyDescriptor.FromProperty(ToastNotification.TransparentForMouseProperty, typeof(ToastNotification));
+            var scaleDescriptor = DependencyPropertyDescriptor.FromProperty(ToastNotification.ScaleProperty, typeof(ToastNotification));
 
             closeDateTimeDescriptor.AddValueChanged(this, (s, args) => updateCloseTimeSpan());
             timer.Tick += (s, args) => updateCloseTimeSpan();
@@ -77,6 +101,8 @@ namespace WorkTimer
             });
             transparentForMouseDescriptor.AddValueChanged(this, (s, args) => updateTransparentForMouse());
             this.Loaded += (s, args) => updateTransparentForMouse();
+            this.SizeChanged += (s, args) => updatePosition();
+            this.Loaded += (s, args) => updatePosition();
 
             // detect global mouse and keyboard events, and log last activity time
         }
@@ -142,6 +168,18 @@ namespace WorkTimer
 
         #endregion
 
+        #region Scale double property
+
+        public static readonly DependencyProperty ScaleProperty
+            = DependencyProperty.Register("Scale", typeof(double), typeof(ToastNotification), new PropertyMetadata(1.0));
+        public double Scale
+        {
+            get { return (double)GetValue(ScaleProperty); }
+            set { SetValue(ScaleProperty, value); }
+        }
+
+        #endregion
+
         #region Close DateTime nullable property
 
         public static readonly DependencyProperty CloseDateTimeProperty
@@ -169,13 +207,6 @@ namespace WorkTimer
         }
 
         #endregion
-
-        private void Window_Loaded(object sender, RoutedEventArgs e)
-        {
-            // set the window to be bottom center of the screen
-            this.Left = System.Windows.SystemParameters.PrimaryScreenWidth / 2 - this.Width / 2;
-            this.Top = System.Windows.SystemParameters.PrimaryScreenHeight - this.Height - 10;
-        }
 
         private void Window_MouseDown(object sender, MouseButtonEventArgs e)
         {

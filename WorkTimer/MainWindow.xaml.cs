@@ -66,14 +66,17 @@ namespace WorkTimer
     /// </summary>
     public partial class MainWindow : Window
     {
+        private ToastNotification toast = new ToastNotification();
+        private TimeSpan prevBreakTime = TimeSpan.Zero;
+
         public MainWindow()
         {
             InitializeComponent();
 
-            ActivityTime = TimeSpan.FromMinutes(5);
-            InterruptingTime = TimeSpan.FromMinutes(1);
-            BreakTime = TimeSpan.FromMinutes(2);
-            MinBreakTime = TimeSpan.FromMinutes(1);
+            ActivityTime = TimeSpan.FromMinutes(20);
+            InterruptingTime = TimeSpan.FromMinutes(2);
+            BreakTime = TimeSpan.FromMinutes(5);
+            MinBreakTime = TimeSpan.FromMinutes(2);
 
             var timer = new System.Windows.Threading.DispatcherTimer();
             timer.Interval = TimeSpan.FromMilliseconds(1000);
@@ -84,9 +87,6 @@ namespace WorkTimer
             timer.Start();
 
             var prevActivityTime = DateTime.Now;
-            var activeTime = TimeSpan.Zero;
-            var prevBreakTime = TimeSpan.Zero;
-            var toast = new ToastNotification();
             toast.TransparentForMouse = true;
 
             Func<bool, DateTime, DateTime, TimeSpan, TimeSpan> getNextBreakTime = (
@@ -125,6 +125,9 @@ namespace WorkTimer
                 
                 if (newActivityTime - prevActivityTime > TimeSpan.FromSeconds(1))
                 {
+                    if (newActivityTime - prevActivityTime > TimeSpan.FromSeconds(60)) {
+                        Console.Beep(1000, 100);
+                    }
                     prevBreakTime = getNextBreakTime(
                         newActivityTime - prevActivityTime < MinBreakTime,
                         prevActivityTime, newActivityTime, prevBreakTime
@@ -140,7 +143,7 @@ namespace WorkTimer
                     ).TotalSeconds
                 ));
 
-                if (nextBreakTime >= BreakTime && toast.IsVisible == false)
+                if ((nextBreakTime - BreakTime) > -TimeSpan.FromSeconds(1) && toast.IsVisible == false)
                 {
                     toast.Show();
                     Console.Beep(800, 200);
@@ -165,6 +168,20 @@ namespace WorkTimer
                     Console.Beep(800, 150);
                     Thread.Sleep(100);
                     Console.Beep(800, 150);
+                    Thread.Sleep(100);
+                    Console.Beep(800, 150);
+                }
+                if (now - prevActivityTime >= MinBreakTime)
+                {
+                    toast.Scale = 3;
+                }
+                else if (interruptingTimeExpired)
+                {
+                    toast.Scale = 2;
+                }
+                else
+                {
+                    toast.Scale = 1;
                 }
 
                 ActivityState = new ActivityState
@@ -283,22 +300,21 @@ namespace WorkTimer
 
         #endregion
 
-        // Button_Click that open ToastNotification window with simple message
-        private void Button_Click(object sender, RoutedEventArgs e)
+        private void Show_Click(object sender, RoutedEventArgs e)
         {
-            showMessage("Hello World!");
+            toast.Animation = true;
+            toast.Scale = 2;
+            toast.Show();
         }
 
-        private void showMessage(string message)
+        private void Hide_Click(object sender, RoutedEventArgs e)
         {
-            ToastNotification toast = new ToastNotification();
-            // set the Message property of the toast
-            toast.Message = message;
-            toast.CloseTimeSpan = TimeSpan.FromSeconds(60);
-            toast.Show();
+            toast.Hide();
+        }
 
-            // blink the taskbar icon
-            // this.FlashTaskbarIcon();
+        private void Break_Click(object sender, RoutedEventArgs e)
+        {
+            prevBreakTime = BreakTime;
         }
     }
 }
