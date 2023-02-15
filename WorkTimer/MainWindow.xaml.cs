@@ -68,6 +68,7 @@ namespace WorkTimer
     {
         private ToastNotification toast = new ToastNotification();
         private TimeSpan prevBreakTime = TimeSpan.Zero;
+        private KeyBeep keyBeep = new KeyBeep();
 
         public MainWindow()
         {
@@ -193,6 +194,11 @@ namespace WorkTimer
             };
         }
 
+        ~MainWindow()
+        {
+            this.keyBeep.Dispose();
+        }
+
         #region Last activity time
 
         [DllImport("user32.dll")]
@@ -302,8 +308,8 @@ namespace WorkTimer
 
         private void Show_Click(object sender, RoutedEventArgs e)
         {
-            toast.Animation = true;
-            toast.Scale = 2;
+            //toast.Animation = true;
+            //toast.Scale = 2;
             toast.Show();
         }
 
