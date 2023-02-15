@@ -50,6 +50,28 @@ namespace WorkTimer
 
         private static HashSet<int> keysPressed = new HashSet<int>();
 
+        private static int beepQueueCount = 0;
+        private static Task beepTask = null;
+        private static System.Media.SoundPlayer player = new System.Media.SoundPlayer(Properties.Resources.click);
+        private static void Beep()
+        {
+            beepQueueCount++;
+            if (beepTask == null)
+            {
+                beepTask = Task.Run(async () =>
+                {
+                    while (beepQueueCount > 0)
+                    {
+                        beepQueueCount = Math.Min(3, beepQueueCount) - 1;
+                        player.Stop();
+                        player.Play();
+                        await Task.Delay(60);
+                    }
+                    beepTask = null;
+                });
+            }
+        }
+
         private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
             if (nCode >= 0)
@@ -63,7 +85,7 @@ namespace WorkTimer
                     if (!isPressed)
                     {
                         keysPressed.Add(key);
-                        Task.Run(() => Console.Beep(1000, 100));
+                        Beep();
                     }
                 }
                 else if (wParam == (IntPtr)WM_KEYUP)
