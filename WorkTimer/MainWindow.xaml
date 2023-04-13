@@ -47,8 +47,10 @@
 			<TextBlock Grid.Row="3" Grid.Column="0" Margin="5" Text="MinBreakTime"/>
 			<TextBox Grid.Row="3" Grid.Column="1" Margin="5" Text="{Binding MinBreakTime, Mode=TwoWay, Converter={StaticResource TimeSpanConverter}}"/>
 			<!-- <TextBlock Grid.Row="3" Grid.Column="1" Margin="5" Text="{Binding MinBreakTime}"/> -->
-			<TextBlock Grid.Row="4" Grid.Column="0" Margin="5" Text="LastActivityTime"/>
-			<TextBlock Grid.Row="4" Grid.Column="1" Margin="5" Text="{Binding LastActivityTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"/>
+			<TextBlock Grid.Row="4" Grid.Column="0" Margin="5" Text="LastActivityDate"/>
+			<TextBlock Grid.Row="4" Grid.Column="1" Margin="5" Text="{Binding LastActivityDate, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"/>
+            <TextBlock Grid.Row="5" Grid.Column="0" Margin="5" Text="CurrentActivityRate"/>
+            <TextBlock Grid.Row="5" Grid.Column="1" Margin="5" Text="{Binding CurrentActivityRate}"/>
 			<TextBlock Grid.Row="6" Grid.Column="0" Margin="5" Text="TimeStart"/>
 			<TextBlock Grid.Row="6" Grid.Column="1" Margin="5" Text="{Binding ActivityState.TimeStart, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"/>
 			<TextBlock Grid.Row="7" Grid.Column="0" Margin="5" Text="Type"/>

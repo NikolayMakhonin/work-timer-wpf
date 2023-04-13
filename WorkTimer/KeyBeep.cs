@@ -53,23 +53,35 @@ namespace WorkTimer
         private static int beepQueueCount = 0;
         private static Task beepTask = null;
         private static System.Media.SoundPlayer player = new System.Media.SoundPlayer(Properties.Resources.click);
+        private static object beepLocker = new object();
         private static void Beep()
         {
-            beepQueueCount++;
-            if (beepTask == null)
+            lock (beepLocker)
             {
-                beepTask = Task.Run(async () =>
+                beepQueueCount++;
+                if (beepTask != null)
                 {
-                    while (beepQueueCount > 0)
-                    {
-                        beepQueueCount = Math.Min(3, beepQueueCount) - 1;
-                        player.Stop();
-                        player.Play();
-                        await Task.Delay(60);
-                    }
-                    beepTask = null;
-                });
+                    return;
+                }
             }
+            beepTask = Task.Run(async () =>
+            {
+                while (true)
+                {
+                    lock (beepLocker)
+                    {
+                        if (beepQueueCount == 0)
+                        {
+                            beepTask = null;
+                            return;
+                        }
+                        beepQueueCount = Math.Min(3, beepQueueCount) - 1;
+                    }
+                    player.Stop();
+                    player.Play();
+                    await Task.Delay(100);
+                }
+            });
         }
 
         private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)

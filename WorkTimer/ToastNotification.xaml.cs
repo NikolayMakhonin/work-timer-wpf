@@ -73,8 +73,16 @@ namespace WorkTimer
                 {
                     return;
                 }
-                this.Left = System.Windows.SystemParameters.PrimaryScreenWidth / 2 - this.ActualWidth / 2;
-                this.Top = System.Windows.SystemParameters.PrimaryScreenHeight - this.ActualHeight - 10;
+                if (LocationCenter)
+                {
+                    this.Left = System.Windows.SystemParameters.PrimaryScreenWidth / 2 - this.ActualWidth / 2;
+                    this.Top = System.Windows.SystemParameters.PrimaryScreenHeight / 2 - this.ActualHeight / 2;
+                }
+                else
+                {
+                    this.Left = System.Windows.SystemParameters.PrimaryScreenWidth / 2 - this.ActualWidth / 2;
+                    this.Top = System.Windows.SystemParameters.PrimaryScreenHeight - this.ActualHeight - 10;
+                }
             };
 
             var timer = new DispatcherTimer();
@@ -87,6 +95,7 @@ namespace WorkTimer
             var closeTimeSpanDescriptor = DependencyPropertyDescriptor.FromProperty(ToastNotification.CloseTimeSpanProperty, typeof(ToastNotification));
             var transparentForMouseDescriptor = DependencyPropertyDescriptor.FromProperty(ToastNotification.TransparentForMouseProperty, typeof(ToastNotification));
             var scaleDescriptor = DependencyPropertyDescriptor.FromProperty(ToastNotification.ScaleProperty, typeof(ToastNotification));
+            var locationCenterDescriptor = DependencyPropertyDescriptor.FromProperty(ToastNotification.LocationCenterProperty, typeof(ToastNotification));
 
             closeDateTimeDescriptor.AddValueChanged(this, (s, args) => updateCloseTimeSpan());
             timer.Tick += (s, args) => updateCloseTimeSpan();
@@ -103,6 +112,7 @@ namespace WorkTimer
             this.Loaded += (s, args) => updateTransparentForMouse();
             this.SizeChanged += (s, args) => updatePosition();
             this.Loaded += (s, args) => updatePosition();
+            locationCenterDescriptor.AddValueChanged(this, (s, args) => updatePosition());
 
             // Set the window's z-order to always be on top
             timer.Tick += (s, args) =>
@@ -211,6 +221,19 @@ namespace WorkTimer
             set {
                 CloseDateTime = value.HasValue ? DateTime.Now + value.Value : (DateTime?)null;
             }
+        }
+
+        #endregion
+
+        #region Location center
+
+        public static readonly DependencyProperty LocationCenterProperty
+            = DependencyProperty.Register("LocationCenter", typeof(bool), typeof(ToastNotification), new PropertyMetadata(false));
+
+        public bool LocationCenter
+        {
+            get { return (bool)GetValue(LocationCenterProperty); }
+            set { SetValue(LocationCenterProperty, value); }
         }
 
         #endregion

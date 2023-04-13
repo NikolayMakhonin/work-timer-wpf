@@ -16,6 +16,7 @@ using System.Runtime.InteropServices;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading;
+using System.Windows.Threading;
 
 public enum ActivityType
 {
@@ -36,12 +37,101 @@ public interface IMainWindow
     TimeSpan InterruptingTime { get; set; }
     TimeSpan BreakTime { get; set; }
     TimeSpan MinBreakTime { get; set; }
-    TimeSpan LastActivityTime { get; set; }
+    TimeSpan LastActivityDate { get; set; }
     ActivityState ActivityState { get; set; }
 }
 
 namespace WorkTimer
 {
+    public class ActivityMonitor {
+        [DllImport("user32.dll")]
+        private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct LASTINPUTINFO
+        {
+            public static readonly int SizeOf = Marshal.SizeOf(typeof(LASTINPUTINFO));
+
+            [MarshalAs(UnmanagedType.U4)]
+            public int cbSize;
+            [MarshalAs(UnmanagedType.U4)]
+            public int dwTime;
+        }
+
+        public static TimeSpan GetLastInputTime()
+        {
+            var lastInputInfo = new LASTINPUTINFO();
+            lastInputInfo.cbSize = LASTINPUTINFO.SizeOf;
+            if (!GetLastInputInfo(ref lastInputInfo))
+            {
+                return TimeSpan.Zero;
+            }
+
+            return TimeSpan.FromMilliseconds(Environment.TickCount - lastInputInfo.dwTime);
+        }
+
+        private DispatcherTimer timer = new DispatcherTimer();
+
+        public ActivityMonitor() {
+            timer.Interval = TimeSpan.FromMilliseconds(500);
+            timer.Tick += _timer_Tick;
+        }
+
+        public double MinRate { get; set; } = 0.15;
+        public TimeSpan WindowTime { get; set; } = TimeSpan.FromSeconds(5);
+        public TimeSpan CheckInterval {
+            get { return timer.Interval; }
+            set { timer.Interval = value; }
+        }
+        public double Rate {
+            get {
+                var now = DateTime.Now;
+                while (_inputDateQueue.Count > 0 && now - _inputDateQueue.Peek() > WindowTime)
+                {
+                    _inputDateQueue.Dequeue();
+                }
+                return (double)_inputDateQueue.Count * CheckInterval.TotalMilliseconds / WindowTime.TotalMilliseconds;
+            }
+        }
+
+        public DateTime LastActivityDate {
+          get;
+          private set;
+        } = DateTime.MinValue;
+
+        private DateTime _prevInputDate = DateTime.MinValue;
+        private Queue<DateTime> _inputDateQueue = new Queue<DateTime>();
+        private void _timer_Tick(object sender, EventArgs e)
+        {
+            var now = DateTime.Now;
+
+            var inputDate = now - GetLastInputTime();
+
+            if (inputDate - _prevInputDate < CheckInterval)
+            {
+                return;
+            }
+            _prevInputDate = inputDate;
+
+            var rate = Rate;
+
+            _inputDateQueue.Enqueue(inputDate);
+
+            if (rate > MinRate)
+            {
+                LastActivityDate = inputDate;
+            }
+        }
+
+        public void Start() {
+            timer.Start();
+        }
+
+        public void Stop() {
+            timer.Stop();
+        }
+    }
+
     public class TimeSpanConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
@@ -69,31 +159,43 @@ namespace WorkTimer
         private ToastNotification toast = new ToastNotification();
         private TimeSpan prevBreakTime = TimeSpan.Zero;
         private KeyBeep keyBeep = new KeyBeep();
+        private ActivityMonitor activityMonitor = new ActivityMonitor();
 
         public MainWindow()
         {
             InitializeComponent();
 
-            ActivityTime = TimeSpan.FromMinutes(20);
-            InterruptingTime = TimeSpan.FromMinutes(2);
-            BreakTime = TimeSpan.FromMinutes(5);
-            MinBreakTime = TimeSpan.FromMinutes(2);
+            this.Closing += (s, e) =>
+            {
+                Application.Current.Shutdown();
+            };
 
-            var timer = new System.Windows.Threading.DispatcherTimer();
-            timer.Interval = TimeSpan.FromMilliseconds(1000);
+            ActivityTime = TimeSpan.FromMinutes(30);
+            InterruptingTime = TimeSpan.FromMinutes(0.1);
+            BreakTime = TimeSpan.FromMinutes(7.5);
+            MinBreakTime = TimeSpan.FromMinutes(3);
+
+            activityMonitor.MinRate = 0.1;
+            activityMonitor.CheckInterval = TimeSpan.FromMilliseconds(100);
+            activityMonitor.WindowTime = TimeSpan.FromSeconds(5);
+            activityMonitor.Start();
+
+            var timer = new DispatcherTimer();
+            timer.Interval = TimeSpan.FromMilliseconds(100);
             timer.Tick += (s, args) =>
             {
-                LastActivityTime = DateTime.Now - GetLastInputTime();
+                LastActivityDate = activityMonitor.LastActivityDate;
+                CurrentActivityRate = activityMonitor.Rate;
             };
             timer.Start();
 
-            var prevActivityTime = DateTime.Now;
+            var prevActivityDate = DateTime.Now;
             toast.TransparentForMouse = true;
 
             Func<bool, DateTime, DateTime, TimeSpan, TimeSpan> getNextBreakTime = (
                 bool increment,
-                DateTime _prevActivityTime,
-                DateTime _newActivityTime,
+                DateTime _prevActivityDate,
+                DateTime _newActivityDate,
                 TimeSpan _prevBreakTime
             ) =>
             {
@@ -101,9 +203,9 @@ namespace WorkTimer
                 {
                     if (_prevBreakTime > BreakTime)
                     {
-                        return _prevBreakTime + (_newActivityTime - _prevActivityTime);
+                        return _prevBreakTime + (_newActivityDate - _prevActivityDate);
                     }
-                    var result = _prevBreakTime.TotalSeconds + (_newActivityTime - _prevActivityTime).TotalSeconds * BreakTime.TotalSeconds / ActivityTime.TotalSeconds;
+                    var result = _prevBreakTime.TotalSeconds + (_newActivityDate - _prevActivityDate).TotalSeconds * BreakTime.TotalSeconds / ActivityTime.TotalSeconds;
                     if (result > BreakTime.TotalSeconds)
                     {
                         result = BreakTime.TotalSeconds + (result - BreakTime.TotalSeconds) * ActivityTime.TotalSeconds / BreakTime.TotalSeconds;
@@ -114,33 +216,32 @@ namespace WorkTimer
                 return TimeSpan.FromSeconds(Math.Max(
                     0,
                     Math.Min(BreakTime.TotalSeconds, _prevBreakTime.TotalSeconds)
-                    - (_newActivityTime - _prevActivityTime).TotalSeconds
+                    - (_newActivityDate - _prevActivityDate).TotalSeconds
                 ));
             };
 
             timer.Tick += (s, args) =>
             {
                 var now = DateTime.Now;
-                TimeSpan lastActivityTimeSpan = GetLastInputTime();
-                DateTime newActivityTime = new DateTime(now.Ticks - lastActivityTimeSpan.Ticks);
-                
-                if (newActivityTime - prevActivityTime > TimeSpan.FromSeconds(1))
+                DateTime newActivityDate = activityMonitor.LastActivityDate;
+
+                if (newActivityDate - prevActivityDate > TimeSpan.FromSeconds(1))
                 {
-                    if (newActivityTime - prevActivityTime > TimeSpan.FromSeconds(60)) {
+                    if (newActivityDate - prevActivityDate > TimeSpan.FromSeconds(60)) {
                         Console.Beep(1000, 100);
                     }
                     prevBreakTime = getNextBreakTime(
-                        newActivityTime - prevActivityTime < MinBreakTime,
-                        prevActivityTime, newActivityTime, prevBreakTime
+                        newActivityDate - prevActivityDate < MinBreakTime,
+                        prevActivityDate, newActivityDate, prevBreakTime
                     );
-                    prevActivityTime = newActivityTime;
+                    prevActivityDate = newActivityDate;
                 }
 
                 var nextBreakTime = TimeSpan.FromSeconds(Math.Max(
-                    (MinBreakTime - (now - prevActivityTime)).TotalSeconds,
+                    (MinBreakTime - (now - prevActivityDate)).TotalSeconds,
                     getNextBreakTime(
                         false,
-                        prevActivityTime, now, prevBreakTime
+                        prevActivityDate, now, prevBreakTime
                     ).TotalSeconds
                 ));
 
@@ -162,23 +263,25 @@ namespace WorkTimer
                 if (!interruptingTimeExpired)
                 {
                     toast.Animation = false;
+                    toast.LocationCenter = false;
                 }
                 else if (toast.Animation != true)
                 {
                     toast.Animation = true;
+                    toast.LocationCenter = true;
                     Console.Beep(800, 150);
                     Thread.Sleep(100);
                     Console.Beep(800, 150);
                     Thread.Sleep(100);
                     Console.Beep(800, 150);
                 }
-                if (now - prevActivityTime >= MinBreakTime)
+                if (now - prevActivityDate >= MinBreakTime)
                 {
-                    toast.Scale = 3;
+                    toast.Scale = 4;
                 }
                 else if (interruptingTimeExpired)
                 {
-                    toast.Scale = 2;
+                    toast.Scale = 4;
                 }
                 else
                 {
@@ -187,7 +290,7 @@ namespace WorkTimer
 
                 ActivityState = new ActivityState
                 {
-                    TimeStart = prevActivityTime,
+                    TimeStart = prevActivityDate,
                     BreakTime = prevBreakTime,
                     NextBreakTime = nextBreakTime
                 };
@@ -199,41 +302,28 @@ namespace WorkTimer
             this.keyBeep.Dispose();
         }
 
-        #region Last activity time
+        #region Last activity date
 
-        [DllImport("user32.dll")]
-        private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+        public static readonly DependencyProperty LastActivityDateProperty
+            = DependencyProperty.Register("LastActivityDate", typeof(DateTime), typeof(MainWindow), new PropertyMetadata(DateTime.MinValue));
 
-        [StructLayout(LayoutKind.Sequential)]
-        private struct LASTINPUTINFO
+        public DateTime LastActivityDate
         {
-            public static readonly int SizeOf = Marshal.SizeOf(typeof(LASTINPUTINFO));
-
-            [MarshalAs(UnmanagedType.U4)]
-            public int cbSize;
-            [MarshalAs(UnmanagedType.U4)]
-            public int dwTime;
+            get { return (DateTime)GetValue(LastActivityDateProperty); }
+            set { SetValue(LastActivityDateProperty, value); }
         }
 
-        public static TimeSpan GetLastInputTime()
+        #endregion
+
+        #region CurrentActivityRate
+
+        public static readonly DependencyProperty CurrentActivityRateProperty
+            = DependencyProperty.Register("CurrentActivityRate", typeof(double), typeof(MainWindow), new PropertyMetadata(0.0));
+
+        public double CurrentActivityRate
         {
-            var lastInputInfo = new LASTINPUTINFO();
-            lastInputInfo.cbSize = LASTINPUTINFO.SizeOf;
-            if (!GetLastInputInfo(ref lastInputInfo))
-            {
-                return TimeSpan.Zero;
-            }
-
-            return TimeSpan.FromMilliseconds(Environment.TickCount - lastInputInfo.dwTime);
-        }
-
-        public static readonly DependencyProperty LastActivityTimeProperty
-            = DependencyProperty.Register("LastActivityTime", typeof(DateTime), typeof(MainWindow), new PropertyMetadata(DateTime.MinValue));
-
-        public DateTime LastActivityTime
-        {
-            get { return (DateTime)GetValue(LastActivityTimeProperty); }
-            set { SetValue(LastActivityTimeProperty, value); }
+            get { return (double)GetValue(CurrentActivityRateProperty); }
+            set { SetValue(CurrentActivityRateProperty, value); }
         }
 
         #endregion
@@ -309,6 +399,7 @@ namespace WorkTimer
         private void Show_Click(object sender, RoutedEventArgs e)
         {
             //toast.Animation = true;
+            //toast.LocationCenter = true;
             //toast.Scale = 2;
             toast.Show();
         }
