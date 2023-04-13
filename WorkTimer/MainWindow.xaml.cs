@@ -171,7 +171,7 @@ namespace WorkTimer
             };
 
             ActivityTime = TimeSpan.FromMinutes(30);
-            InterruptingTime = TimeSpan.FromMinutes(0.1);
+            InterruptingTime = TimeSpan.FromMinutes(3);
             BreakTime = TimeSpan.FromMinutes(7.5);
             MinBreakTime = TimeSpan.FromMinutes(3);
 
@@ -285,7 +285,7 @@ namespace WorkTimer
                 }
                 else
                 {
-                    toast.Scale = 1;
+                    toast.Scale = 3;
                 }
 
                 ActivityState = new ActivityState
