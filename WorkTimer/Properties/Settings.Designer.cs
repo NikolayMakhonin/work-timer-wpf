@@ -8,21 +8,66 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-
-namespace WorkTimer.Properties
-{
+namespace WorkTimer.Properties {
+    
+    
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "11.0.0.0")]
-    internal sealed partial class Settings : global::System.Configuration.ApplicationSettingsBase
-    {
-
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "16.10.0.0")]
+    internal sealed partial class Settings : global::System.Configuration.ApplicationSettingsBase {
+        
         private static Settings defaultInstance = ((Settings)(global::System.Configuration.ApplicationSettingsBase.Synchronized(new Settings())));
-
-        public static Settings Default
-        {
-            get
-            {
+        
+        public static Settings Default {
+            get {
                 return defaultInstance;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("00:10:00")]
+        public global::System.TimeSpan ActivityTime {
+            get {
+                return ((global::System.TimeSpan)(this["ActivityTime"]));
+            }
+            set {
+                this["ActivityTime"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("00:03:00")]
+        public global::System.TimeSpan InterruptingTime {
+            get {
+                return ((global::System.TimeSpan)(this["InterruptingTime"]));
+            }
+            set {
+                this["InterruptingTime"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("00:01:00")]
+        public global::System.TimeSpan BreakTime {
+            get {
+                return ((global::System.TimeSpan)(this["BreakTime"]));
+            }
+            set {
+                this["BreakTime"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("00:00:59")]
+        public global::System.TimeSpan MinBreakTime {
+            get {
+                return ((global::System.TimeSpan)(this["MinBreakTime"]));
+            }
+            set {
+                this["MinBreakTime"] = value;
             }
         }
     }
