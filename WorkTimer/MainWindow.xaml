@@ -51,14 +51,14 @@
 			<TextBlock Grid.Row="4" Grid.Column="1" Margin="5" Text="{Binding LastActivityDate, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"/>
             <TextBlock Grid.Row="5" Grid.Column="0" Margin="5" Text="CurrentActivityRate"/>
             <TextBlock Grid.Row="5" Grid.Column="1" Margin="5" Text="{Binding CurrentActivityRate}"/>
-			<TextBlock Grid.Row="6" Grid.Column="0" Margin="5" Text="TimeStart"/>
-			<TextBlock Grid.Row="6" Grid.Column="1" Margin="5" Text="{Binding ActivityState.TimeStart, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"/>
-			<TextBlock Grid.Row="7" Grid.Column="0" Margin="5" Text="Type"/>
-			<TextBlock Grid.Row="7" Grid.Column="1" Margin="5" Text="{Binding ActivityState.Type}"/>
-			<TextBlock Grid.Row="8" Grid.Column="0" Margin="5" Text="BreakTime"/>
-			<TextBlock Grid.Row="8" Grid.Column="1" Margin="5" Text="{Binding ActivityState.BreakTime}"/>
-			<TextBlock Grid.Row="9" Grid.Column="0" Margin="5" Text="NextBreakTime"/>
-			<TextBlock Grid.Row="9" Grid.Column="1" Margin="5" Text="{Binding ActivityState.NextBreakTime}"/>
+            <TextBlock Grid.Row="6" Grid.Column="0" Margin="5" Text="ActivityStart"/>
+            <TextBlock Grid.Row="6" Grid.Column="1" Margin="5" Text="{Binding ActivityState.ActivityStart, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"/>
+			<TextBlock Grid.Row="7" Grid.Column="0" Margin="5" Text="Mode"/>
+			<TextBlock Grid.Row="7" Grid.Column="1" Margin="5" Text="{Binding ActivityState.Mode}"/>
+            <TextBlock Grid.Row="8" Grid.Column="0" Margin="5" Text="ActivityTime"/>
+            <TextBlock Grid.Row="8" Grid.Column="1" Margin="5" Text="{Binding ActivityState.ActivityTime}"/>
+			<TextBlock Grid.Row="9" Grid.Column="0" Margin="5" Text="BreakTime"/>
+			<TextBlock Grid.Row="9" Grid.Column="1" Margin="5" Text="{Binding ActivityState.BreakTime}"/>
 		</Grid>
 		<Grid Grid.Column="1" Grid.Row="0">
             <Grid.RowDefinitions>

@@ -18,17 +18,20 @@ using System.Diagnostics;
 using System.Threading;
 using System.Windows.Threading;
 
-public enum ActivityType
+
+public enum Mode
 {
-    Active,
-    Break
+    Idle,
+    Activity,
+    Interrupting,
+    Break,
 }
 
 public class ActivityState {
-    public DateTime TimeStart { get; set; }
-    public ActivityType Type { get; set; }
+    public DateTime ActivityStart { get; set; }
+    public TimeSpan ActivityTime { get; set; }
     public TimeSpan BreakTime { get; set; }
-    public TimeSpan NextBreakTime { get; set; }
+    public Mode Mode { get; set; }
 }
 
 public interface IMainWindow
@@ -151,23 +154,69 @@ namespace WorkTimer
         }
     }
 
-    enum Mode
-    {
-        Idle,
-        Activity,
-        Interrupting,
-        Break,
-    }
-
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
     public partial class MainWindow : Window
     {
         private ToastNotification toast = new ToastNotification();
-        private TimeSpan prevBreakTime = TimeSpan.Zero;
         // private KeyBeep keyBeep = new KeyBeep();
         private ActivityMonitor activityMonitor = new ActivityMonitor();
+        private DateTime prevActivityDateThrottled = DateTime.Now;
+        private DateTime lastActivityDateThrottled = DateTime.Now;
+        private Mode _mode = Mode.Idle;
+        private Mode mode
+        {
+            get
+            {
+                return _mode;
+            }
+            set
+            {
+                if (_mode == value)
+                {
+                    return;
+                }
+
+                switch (value)
+                {
+                    case Mode.Idle:
+                        toast.Hide();
+                        if (_mode == Mode.Interrupting || _mode == Mode.Break)
+                        {
+                            Console.Beep(1000, 400);
+                        }
+                        break;
+                    case Mode.Activity:
+                        toast.Hide();
+                        Console.Beep(2000, 100);
+                        break;
+                    case Mode.Interrupting:
+                        toast.Scale = 3;
+                        toast.Animation = false;
+                        toast.LocationCenter = false;
+                        toast.Show();
+                        Console.Beep(800, 200);
+                        break;
+                    case Mode.Break:
+                        lastActivityDateThrottled = DateTime.Now;
+                        toast.Scale = 4;
+                        toast.Animation = true;
+                        toast.LocationCenter = true;
+                        toast.Show();
+                        Console.Beep(800, 150);
+                        Thread.Sleep(100);
+                        Console.Beep(800, 150);
+                        Thread.Sleep(100);
+                        Console.Beep(800, 150);
+                        break;
+                    default:
+                        throw new Exception("Unknown Mode: " + mode);
+                }
+
+                _mode = value;
+            }
+        }
 
         public MainWindow()
         {
@@ -200,13 +249,10 @@ namespace WorkTimer
             timer.Start();
 
             var activityStart = DateTime.Now;
-            Mode mode = Mode.Activity;
 
-            var MIN_ACTIVITY_TIME = TimeSpan.FromSeconds(2);
+            var MIN_ACTIVITY_TIME = TimeSpan.FromSeconds(1);
             var MIN_BREAK_TIME = TimeSpan.FromSeconds(2);
             var prevActivityDate = DateTime.Now;
-            var prevActivityDateThrottled = DateTime.Now;
-            var lastActivityDateThrottled = DateTime.Now;
 
             toast.TransparentForMouse = true;
 
@@ -229,9 +275,8 @@ namespace WorkTimer
                     case Mode.Idle:
                         if (lastActivityDateThrottled != prevActivityDateThrottled)
                         {
-                            mode = Mode.Activity;
                             activityStart = lastActivityDateThrottled;
-                            Console.Beep(2000, 100);
+                            mode = Mode.Activity;
                         }
                         break;
                     case Mode.Activity:
@@ -242,39 +287,22 @@ namespace WorkTimer
                         if (lastActivityDateThrottled - activityStart > ActivityTime)
                         {
                             mode = Mode.Interrupting;
-                            toast.Scale = 3;
-                            toast.Animation = false;
-                            toast.LocationCenter = false;
-                            toast.Show();
-                            Console.Beep(800, 200);
                         }
                         break;
                     case Mode.Interrupting:
                         if (now - lastActivityDateThrottled > BreakTime)
                         {
                             mode = Mode.Idle;
-                            toast.Hide();
-                            Console.Beep(1000, 400);
                         }
                         if (lastActivityDateThrottled - activityStart > ActivityTime + InterruptingTime)
                         {
                             mode = Mode.Break;
-                            toast.Scale = 4;
-                            toast.Animation = true;
-                            toast.LocationCenter = true;
-                            Console.Beep(800, 150);
-                            Thread.Sleep(100);
-                            Console.Beep(800, 150);
-                            Thread.Sleep(100);
-                            Console.Beep(800, 150);
                         }
                         break;
                     case Mode.Break:
                         if (now - lastActivityDateThrottled > BreakTime)
                         {
                             mode = Mode.Idle;
-                            toast.Hide();
-                            Console.Beep(1000, 400);
                         }
                         break;
                     default:
@@ -287,9 +315,10 @@ namespace WorkTimer
 
                 ActivityState = new ActivityState
                 {
-                    TimeStart = prevActivityDate,
+                    ActivityStart = activityStart,
+                    ActivityTime = lastActivityDateThrottled - activityStart,
                     BreakTime = now - lastActivityDateThrottled,
-                    NextBreakTime = TimeSpan.Zero,
+                    Mode = mode,
                 };
             };
         }
@@ -452,13 +481,12 @@ namespace WorkTimer
 
         private void Break_Click(object sender, RoutedEventArgs e)
         {
-            prevBreakTime = BreakTime;
+            mode = Mode.Break;
         }
 
         private void Continue_Click(object sender, RoutedEventArgs e)
         {
-            prevBreakTime = TimeSpan.Zero;
-            toast.Hide();
+            mode = Mode.Idle;
         }
 
         private Properties.Settings settings = Properties.Settings.Default;
