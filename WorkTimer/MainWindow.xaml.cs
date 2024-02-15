@@ -151,6 +151,14 @@ namespace WorkTimer
         }
     }
 
+    enum Mode
+    {
+        Idle,
+        Activity,
+        Interrupting,
+        Break,
+    }
+
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
@@ -191,127 +199,97 @@ namespace WorkTimer
             };
             timer.Start();
 
+            var activityStart = DateTime.Now;
+            Mode mode = Mode.Activity;
+
+            var MIN_ACTIVITY_TIME = TimeSpan.FromSeconds(2);
+            var MIN_BREAK_TIME = TimeSpan.FromSeconds(2);
             var prevActivityDate = DateTime.Now;
+            var prevActivityDateThrottled = DateTime.Now;
+            var lastActivityDateThrottled = DateTime.Now;
+
             toast.TransparentForMouse = true;
-
-            Func<bool, TimeSpan, TimeSpan, TimeSpan> getNextBreakTime = (
-                bool increment,
-                TimeSpan _actualBreakTime,
-                TimeSpan _prevBreakTime
-            ) =>
-            {
-                if (increment)
-                {
-                    if (_prevBreakTime > BreakTime)
-                    {
-                        return _prevBreakTime + _actualBreakTime;
-                    }
-                    var result = _prevBreakTime.TotalSeconds + _actualBreakTime.TotalSeconds * BreakTime.TotalSeconds / ActivityTime.TotalSeconds;
-                    if (result > BreakTime.TotalSeconds)
-                    {
-                        result = BreakTime.TotalSeconds + (result - BreakTime.TotalSeconds) * ActivityTime.TotalSeconds / BreakTime.TotalSeconds;
-                    }
-                    return TimeSpan.FromSeconds(result);
-                }
-
-                return TimeSpan.FromSeconds(Math.Max(
-                    0,
-                    Math.Min(BreakTime.TotalSeconds, _prevBreakTime.TotalSeconds)
-                    - _actualBreakTime.TotalSeconds
-                ));
-            };
 
             timer.Tick += (s, args) =>
             {
                 var now = DateTime.Now;
-                DateTime newActivityDate = activityMonitor.LastActivityDate;
-                var actualBreakTime = newActivityDate - prevActivityDate;
+                DateTime lastActivityDate = activityMonitor.LastActivityDate;
 
-                var minBreakTime = toast.IsVisible
-                  ? (MinBreakTime < BreakTime ? MinBreakTime : BreakTime)
-                  : MinBreakTime;
-
-                if (actualBreakTime > TimeSpan.FromSeconds(1))
+                if (now - lastActivityDate > MIN_BREAK_TIME)
                 {
-                    if (actualBreakTime > TimeSpan.FromSeconds(60)) {
-                    }
-                    if (actualBreakTime >= (MinBreakTime < BreakTime ? MinBreakTime : BreakTime))
-                    {
-                        Console.Beep(2000, 100);
-                        prevBreakTime = TimeSpan.Zero;
-                        prevActivityDate = now;
-                        newActivityDate = now;
-                    }
-                    else
-                    {
-                        prevBreakTime = getNextBreakTime(
-                            actualBreakTime < minBreakTime,
-                            actualBreakTime,
-                            prevBreakTime
-                        );
-                        prevActivityDate = newActivityDate;
-                    }
+                    prevActivityDate = now;
+                }
+                if (lastActivityDate - prevActivityDate > MIN_ACTIVITY_TIME)
+                {
+                    lastActivityDateThrottled = lastActivityDate;
                 }
 
-                var nextBreakTime = TimeSpan.FromSeconds(Math.Max(
-                    // (MinBreakTime - (now - prevActivityDate)).TotalSeconds,
-                    0,
-                    getNextBreakTime(
-                        false,
-                        now - prevActivityDate,
-                        prevBreakTime
-                    ).TotalSeconds
-                ));
+                switch (mode)
+                {
+                    case Mode.Idle:
+                        if (lastActivityDateThrottled != prevActivityDateThrottled)
+                        {
+                            mode = Mode.Activity;
+                            activityStart = lastActivityDateThrottled;
+                            Console.Beep(2000, 100);
+                        }
+                        break;
+                    case Mode.Activity:
+                        if (now - lastActivityDateThrottled > (MinBreakTime < BreakTime ? MinBreakTime : BreakTime))
+                        {
+                            mode = Mode.Idle;
+                        }
+                        if (lastActivityDateThrottled - activityStart > ActivityTime)
+                        {
+                            mode = Mode.Interrupting;
+                            toast.Scale = 3;
+                            toast.Animation = false;
+                            toast.LocationCenter = false;
+                            toast.Show();
+                            Console.Beep(800, 200);
+                        }
+                        break;
+                    case Mode.Interrupting:
+                        if (now - lastActivityDateThrottled > BreakTime)
+                        {
+                            mode = Mode.Idle;
+                            toast.Hide();
+                            Console.Beep(1000, 400);
+                        }
+                        if (lastActivityDateThrottled - activityStart > ActivityTime + InterruptingTime)
+                        {
+                            mode = Mode.Break;
+                            toast.Scale = 4;
+                            toast.Animation = true;
+                            toast.LocationCenter = true;
+                            Console.Beep(800, 150);
+                            Thread.Sleep(100);
+                            Console.Beep(800, 150);
+                            Thread.Sleep(100);
+                            Console.Beep(800, 150);
+                        }
+                        break;
+                    case Mode.Break:
+                        if (now - lastActivityDateThrottled > BreakTime)
+                        {
+                            mode = Mode.Idle;
+                            toast.Hide();
+                            Console.Beep(1000, 400);
+                        }
+                        break;
+                    default:
+                        throw new Exception("Unknown Mode: " + mode);
+                }
+                prevActivityDateThrottled = lastActivityDateThrottled;
 
-                if ((nextBreakTime - BreakTime) > -TimeSpan.FromSeconds(1) && toast.IsVisible == false)
-                {
-                    toast.Show();
-                    Console.Beep(800, 200);
-                }
-                toast.Message = "You should take a break in " + TimeSpan.FromSeconds(Math.Min(
-                    BreakTime.TotalSeconds,
-                    nextBreakTime.TotalSeconds
-                )).ToString(@"mm\:ss");
-                if (nextBreakTime <= TimeSpan.Zero && toast.IsVisible == true)
-                {
-                    toast.Hide();
-                    Console.Beep(1000, 400);
-                    prevBreakTime = TimeSpan.Zero;
-                }
-                var interruptingTimeExpired = prevBreakTime >= BreakTime + InterruptingTime;
-                if (!interruptingTimeExpired)
-                {
-                    toast.Animation = false;
-                    toast.LocationCenter = false;
-                }
-                else if (toast.Animation != true)
-                {
-                    toast.Animation = true;
-                    toast.LocationCenter = true;
-                    Console.Beep(800, 150);
-                    Thread.Sleep(100);
-                    Console.Beep(800, 150);
-                    Thread.Sleep(100);
-                    Console.Beep(800, 150);
-                }
-                if (now - prevActivityDate >= (MinBreakTime < BreakTime ? MinBreakTime : BreakTime))
-                {
-                    toast.Scale = 4;
-                }
-                else if (interruptingTimeExpired)
-                {
-                    toast.Scale = 4;
-                }
-                else
-                {
-                    toast.Scale = 3;
-                }
+                toast.Message = "You should take a break in "
+                    + (BreakTime - (now - lastActivityDateThrottled)).ToString(@"mm\:ss");
 
                 ActivityState = new ActivityState
                 {
                     TimeStart = prevActivityDate,
-                    BreakTime = prevBreakTime,
-                    NextBreakTime = nextBreakTime
+                    BreakTime = now - lastActivityDateThrottled,
+                    NextBreakTime = TimeSpan.Zero,
                 };
             };
         }
