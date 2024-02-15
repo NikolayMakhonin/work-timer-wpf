@@ -234,14 +234,23 @@ namespace WorkTimer
                 if (actualBreakTime > TimeSpan.FromSeconds(1))
                 {
                     if (actualBreakTime > TimeSpan.FromSeconds(60)) {
-                        Console.Beep(1000, 100);
                     }
-                    prevBreakTime = getNextBreakTime(
-                        actualBreakTime < minBreakTime,
-                        actualBreakTime,
-                        prevBreakTime
-                    );
-                    prevActivityDate = newActivityDate;
+                    if (actualBreakTime >= (MinBreakTime < BreakTime ? MinBreakTime : BreakTime))
+                    {
+                        Console.Beep(2000, 100);
+                        prevBreakTime = TimeSpan.Zero;
+                        prevActivityDate = now;
+                        newActivityDate = now;
+                    }
+                    else
+                    {
+                        prevBreakTime = getNextBreakTime(
+                            actualBreakTime < minBreakTime,
+                            actualBreakTime,
+                            prevBreakTime
+                        );
+                        prevActivityDate = newActivityDate;
+                    }
                 }
 
                 var nextBreakTime = TimeSpan.FromSeconds(Math.Max(
